@@ -13,7 +13,7 @@ class FeatureStatistics:
         self.n_total_features = 0  # Total number of features accumulated
 
         # Init all features dictionaries
-        feature_dict_list = ["f100"]  # the feature classes used in the code
+        feature_dict_list = ["f100", "f101", "f102", "f103", "f104", "f105", "f106", "f107"]  # the feature classes used in the code
         self.feature_rep_dict = {fd: OrderedDict() for fd in feature_dict_list}
         '''
         A dictionary containing the counts of each data regarding a feature class. For example in f100, would contain
@@ -42,10 +42,37 @@ class FeatureStatistics:
                     self.tags_counts[cur_tag] += 1
                     self.words_count[cur_word] += 1
 
+                    # f100
                     if (cur_word, cur_tag) not in self.feature_rep_dict["f100"]:
                         self.feature_rep_dict["f100"][(cur_word, cur_tag)] = 1
                     else:
                         self.feature_rep_dict["f100"][(cur_word, cur_tag)] += 1
+
+                    # f101
+                    if (cur_word[len(cur_word) - 3:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
+                        self.feature_rep_dict["f101"][(cur_word[len(cur_word) - 3:len(cur_word)], cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f101"][(cur_word[len(cur_word) - 3:len(cur_word)], cur_tag)] += 1
+
+                    # f102
+                    if (cur_word[:3], cur_tag) not in self.feature_rep_dict["f102"]:
+                        self.feature_rep_dict["f102"][(cur_word[:3], cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f102"][(cur_word[:3], cur_tag)] += 1
+
+                    # 106 check the diff with 100 for 106 and 107
+                    if (cur_word[word_idx - 1], cur_tag) not in self.feature_rep_dict["f106"]:
+                        self.feature_rep_dict["f106"][(cur_word[word_idx - 1], cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f106"][(cur_word[word_idx - 1], cur_tag)] += 1
+
+                    # 107
+                    if (cur_word[word_idx + 1], cur_tag) not in self.feature_rep_dict["f107"]:
+                        self.feature_rep_dict["f107"][(cur_word[word_idx + 1], cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f107S"][(cur_word[word_idx + 1], cur_tag)] += 1
+
+
 
                 sentence = [("*", "*"), ("*", "*")]
                 for pair in split_words:
@@ -74,6 +101,13 @@ class Feature2id:
         # Init all features dictionaries
         self.feature_to_idx = {
             "f100": OrderedDict(),
+            "f101": OrderedDict(),
+            "f102": OrderedDict(),
+            "f103": OrderedDict(),
+            "f104": OrderedDict(),
+            "f105": OrderedDict(),
+            "f106": OrderedDict(),
+            "f107": OrderedDict(),
         }
         self.represent_input_with_features = OrderedDict()
         self.histories_matrix = OrderedDict()

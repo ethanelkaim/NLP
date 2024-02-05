@@ -3,9 +3,10 @@ from tqdm import tqdm
 
 
 # Define a function to calculate the score of a tag transition
-def score_transition(prev_tag, curr_tag):
+# def score_transition(prev_tag, curr_tag):
     # Your score calculation logic here
-    return 0.0  # Placeholder value
+
+    # return 0.0  # Placeholder value
 
 
 def memm_viterbi(sentence, pre_trained_weights, feature2id):
@@ -14,59 +15,91 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
         You can implement Beam Search to improve runtime
         Implement q efficiently (refer to conditional probability definition in MEMM slides)
         """
+    # Extract relevant information
+    num_tags = len(feature2id.tags)
+    num_words = len(sentence)
+    tags = list(feature2id.tags)
 
-    # Initialize variables
-    n_words = len(sentence)
-    tags = list(feature2id.feature_statistics.tags)  # List of possible tags
+    # Initialize matrices for probabilities and backpointers
+    # dimensions: (num_words - 2) x num_tags x num_tags
+    # probabilities[k][i][j] represents the probability of tag j at word k-2 given tags i at k-1 and tags at k
+    probabilities = np.zeros((num_words - 2, num_tags, num_tags))
+    backpointers = np.zeros((num_words - 2, num_tags, num_tags), dtype=int)
 
-    # Initialize data structures for Viterbi algorithm
-    best_scores = [{tag: 0.0 for tag in tags} for _ in range(n_words)]
-    back_pointers = [{} for _ in range(n_words)]
+    # Iterating over words
+    for i in range(2, num_words):
+        # Iterating over current tag
+        for k, current_tag in enumerate(tags):
+            # Iterating over previous tags
+            for j, prev_tag in enumerate(tags):
+                # Extract features for trigram
+                features = extract_trigram_features(sentence, i, current_tag, prev_tag, feature2id)
 
-    # Perform Viterbi algorithm
-    for i, word in enumerate(sentence):
-        if i == 0:
-            prev_best_scores = {"*": 0.0}  # Start symbol
-        else:
-            prev_best_scores = best_scores[i - 1]
+                # Calculate the score using pre-trained weights
+                score = calculate_score(features, pre_trained_weights)
 
-        for curr_tag in tags:
-            max_score = float('-inf')
-            best_prev_tag = None
+                # Update probabilities
+                if i == 2:  # Base case for first trigram
+                    probabilities[0][0][k] = score
+                else:
+                    # Find the maximum probability and corresponding previous tag
+                    max_score = float('-inf')
+                    max_prev_tag = -1
+                    for prev_tag_index, prev_tag_prob in enumerate(probabilities[i - 3, :, :]):
+                        temp_score = prev_tag_prob[j] + score
+                        if temp_score > max_score:
+                            max_score = temp_score
+                            max_prev_tag = prev_tag_index
+                    probabilities[i - 2, j, k] = max_score
+                    backpointers[i - 2, j, k] = max_prev_tag
 
-            # Calculate the score for transitioning to the current tag
-            transition_score = score_transition("*", curr_tag)  # Example: Initial transition from start symbol
-
-            for prev_tag, prev_score in prev_best_scores.items():
-                # Calculate the score for transitioning from the previous tag to the current tag
-                # and adding the score of the current word-tag pair
-                emission_score = calculate_emission_score(word, curr_tag, pre_trained_weights, feature2id)
-                score = prev_score + transition_score + emission_score
-
-                if score > max_score:
-                    max_score = score
-                    best_prev_tag = prev_tag
-
-            best_scores[i][curr_tag] = max_score
-            back_pointers[i][curr_tag] = best_prev_tag
-
-    # Perform backtracking to find the best sequence of tags
+    # Backtrack to find the best tag sequence
     best_sequence = []
-    max_final_score = float('-inf')
-    best_final_tag = None
+    max_last_score = float('-inf')
+    max_last_tag = -1
 
-    for tag, score in best_scores[-1].items():
-        if score > max_final_score:
-            max_final_score = score
-            best_final_tag = tag
+    # Find the maximum probability for the last word
+    for j, prev_tag in enumerate(tags):
+        for k, current_tag in enumerate(tags):
+            score = probabilities[num_words - 3][j][k]
+            if score > max_last_score:
+                max_last_score = score
+                max_last_tag = k
 
-    current_tag = best_final_tag
-    for bp in reversed(back_pointers):
-        best_sequence.insert(0, current_tag)
-        current_tag = bp[current_tag]
+    best_sequence.append(tags[max_last_tag])
+
+    # Backtrack to find the best sequence of tags
+    for i in range(num_words - 3, 0, -1):
+        prev_tag_index = backpointers[i][max_last_tag][0]
+        best_sequence.insert(0, tags[prev_tag_index])
+        max_last_tag = prev_tag_index
 
     return best_sequence
 
+
+def extract_trigram_features(sentence, i, current_tag, prev_tag, feature2id):
+    """
+    Extract features for the trigram MEMM model.
+    """
+    features = []
+    # Example: Add features related to current word, current tag, previous word, previous tag, etc.
+    features.append((sentence[i], current_tag, sentence[i - 1], prev_tag))
+    # Add more features as needed
+
+    # Convert features to feature indices
+    feature_indices = [feature2id.get(f, feature2id.get('UNK')) for f in features]
+
+    return feature_indices
+
+
+def calculate_score(features, pre_trained_weights):
+    """
+    Calculate the score for a given set of features using pre-trained weights.
+    """
+    score = 0.0
+    for feature_index in features:
+        score += pre_trained_weights[feature_index]
+    return score
 
 def tag_all_test(test_path, pre_trained_weights, feature2id, predictions_path):
     tagged = "test" in test_path
