@@ -38,6 +38,13 @@ class FeatureStatistics:
                 split_words = line.split(' ')
                 for word_idx in range(len(split_words)):
                     cur_word, cur_tag = split_words[word_idx].split('_')
+                    if word_idx > 0:
+                        previous_word, previous_tag = split_words[word_idx - 1].split('_')
+                    if word_idx > 1:
+                        pre_previous_word, pre_previous_tag = split_words[word_idx - 2].split('_')
+                    if word_idx < (len(split_words) - 1):
+                        next_word, = split_words[word_idx + 1].split('_')
+
                     self.tags.add(cur_tag)
                     self.tags_counts[cur_tag] += 1
                     self.words_count[cur_word] += 1
@@ -60,17 +67,36 @@ class FeatureStatistics:
                     else:
                         self.feature_rep_dict["f102"][(cur_word[:3], cur_tag)] += 1
 
-                    # 106 check the diff with 100 for 106 and 107
-                    if (cur_word[word_idx - 1], cur_tag) not in self.feature_rep_dict["f106"]:
-                        self.feature_rep_dict["f106"][(cur_word[word_idx - 1], cur_tag)] = 1
+                    # f103
+                    if (pre_previous_tag, previous_tag, cur_tag) not in self.feature_rep_dict["f103"]:
+                        self.feature_rep_dict["f103"][(pre_previous_tag, previous_tag, cur_tag)] = 1
                     else:
-                        self.feature_rep_dict["f106"][(cur_word[word_idx - 1], cur_tag)] += 1
+                        self.feature_rep_dict["f103"][(pre_previous_tag, previous_tag, cur_tag)] += 1
 
-                    # 107
-                    if (cur_word[word_idx + 1], cur_tag) not in self.feature_rep_dict["f107"]:
-                        self.feature_rep_dict["f107"][(cur_word[word_idx + 1], cur_tag)] = 1
+                    # f104
+                    if (previous_tag, cur_tag) not in self.feature_rep_dict["f104"]:
+                        self.feature_rep_dict["f104"][(previous_tag, cur_tag)] = 1
                     else:
-                        self.feature_rep_dict["f107S"][(cur_word[word_idx + 1], cur_tag)] += 1
+                        self.feature_rep_dict["f104"][(previous_tag, cur_tag)] += 1
+
+                    # f105
+                    if cur_tag not in self.feature_rep_dict["f105"]:
+                        self.feature_rep_dict["f105"][cur_tag] = 1
+                    else:
+                        self.feature_rep_dict["f105"][cur_tag] += 1
+
+
+                    # f106 check the diff with 100 for 106 and 107
+                    if (previous_word, cur_tag) not in self.feature_rep_dict["f106"]:
+                        self.feature_rep_dict["f106"][(previous_word, cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f106"][(previous_word, cur_tag)] += 1
+
+                    # f107
+                    if (next_word, cur_tag) not in self.feature_rep_dict["f107"]:
+                        self.feature_rep_dict["f107"][(next_word, cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f107S"][(next_word, cur_tag)] += 1
 
 
 
