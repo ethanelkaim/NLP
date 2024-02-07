@@ -1,11 +1,18 @@
 import numpy as np
-from preprocessing import read_test
+from preprocessing import read_test, represent_input_with_features
 from tqdm import tqdm
+import math
 
 
-def q(v, u, t, w, k):
-    numerator = 0
+def q(v, u, t, w, k, features_dict, pre_trained_weights, total_score=0):
     denominator = 0
+
+    score = represent_input_with_features(w, features_dict)
+    for i in score:
+        total_score += pre_trained_weights[i]
+
+    numerator = math.exp(total_score)
+
     return numerator / denominator
 
 
@@ -25,7 +32,15 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     pi_matrix[0, tags.index('*'), tags.index('*')] = 1
 
     # Iterating over words
-    for k in range(1, num_words + 1):
+    for k in range(2, num_words):
+
+        if k == num_words - 1:
+            next_word = '~'
+        else:
+            next_word = sentence[k + 1]
+        previous_word = sentence[k - 1]
+        pre_previous_word = sentence[k - 2]
+
         # Iterating over current tag
         for v, current_tag in enumerate(tags):
             # Iterating over previous tags
@@ -33,7 +48,8 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
                 # Iterating over pre_previous tags
                 prob = {tag: 0 for tag in tags}
                 for t, pre_pre_tag in enumerate(tags):
-                    prob[t] = pi_matrix[(k - 1, t, u)] * q(v, u, t, w, k)
+                    w = [sentence[k], current_tag, previous_word, prev_tag, pre_previous_word, pre_pre_tag, next_word]
+                    prob[t] = pi_matrix[(k - 1, t, u)] * q(v, u, t, w, sentence[k], feature2id.feature_to_idx, pre_trained_weights)
 
                 argmax_t = -1
                 max_t = float('-inf')
@@ -44,6 +60,7 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
 
                 pi_matrix[k, u, v] = max_t
                 bp_matrix[k, u, v] = argmax_t
+
 
     # Backtrack to find the best tag sequence
     best_sequence = []
@@ -69,19 +86,19 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     return best_sequence
 
 
-def extract_trigram_features(sentence, i, current_tag, prev_tag, feature2id):
-    """
-    Extract features for the trigram MEMM model.
-    """
-    features = []
-    # Example: Add features related to current word, current tag, previous word, previous tag, etc.
-    features.append((sentence[i], current_tag, sentence[i - 1], prev_tag))
-    # Add more features as needed
-
-    # Convert features to feature indices
-    feature_indices = [feature2id.get(f, feature2id.get('UNK')) for f in features]
-
-    return feature_indices
+# def extract_trigram_features(sentence, i, current_tag, prev_tag, feature2id):
+#     """
+#     Extract features for the trigram MEMM model.
+#     """
+#     features = []
+#     Example: Add features related to current word, current tag, previous word, previous tag, etc.
+#     # features.append((sentence[i], current_tag, sentence[i - 1], prev_tag))
+#     Add more features as needed
+#     #
+#     Convert features to feature indices
+    # feature_indices = [feature2id.get(f, feature2id.get('UNK')) for f in features]
+    #
+    # return feature_indices
 #
 #
 # def calculate_score(features, pre_trained_weights):
