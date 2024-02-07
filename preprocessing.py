@@ -13,7 +13,7 @@ class FeatureStatistics:
         self.n_total_features = 0  # Total number of features accumulated
 
         # Init all features dictionaries
-        feature_dict_list = ["f100", "f101", "f102", "f103", "f104", "f105", "f106", "f107"]  # the feature classes used in the code
+        feature_dict_list = ["f100", "f101", "f102", "f103", "f104", "f105", "f106", "f107", "108", "109"]
         self.feature_rep_dict = {fd: OrderedDict() for fd in feature_dict_list}
         '''
         A dictionary containing the counts of each data regarding a feature class. For example in f100, would contain
@@ -24,6 +24,7 @@ class FeatureStatistics:
         self.tags_counts = defaultdict(int)  # a dictionary with the number of times each tag appeared in the text
         self.words_count = defaultdict(int)  # a dictionary with the number of times each word appeared in the text
         self.histories = []  # a list of all the histories seen at the test
+
 
     def get_word_tag_pair_count(self, file_path) -> None:
         """
@@ -38,12 +39,20 @@ class FeatureStatistics:
                 split_words = line.split(' ')
                 for word_idx in range(len(split_words)):
                     cur_word, cur_tag = split_words[word_idx].split('_')
+
+                    # setting previous and next words/ tags
+                    if word_idx == 0:
+                        previous_word, previous_tag = ['*', '*']
+                    if word_idx <= 1:
+                        pre_previous_word, pre_previous_tag = ['*', '*']
                     if word_idx > 0:
                         previous_word, previous_tag = split_words[word_idx - 1].split('_')
                     if word_idx > 1:
                         pre_previous_word, pre_previous_tag = split_words[word_idx - 2].split('_')
                     if word_idx < (len(split_words) - 1):
                         next_word, = split_words[word_idx + 1].split('_')
+                    if word_idx == (len(split_words) - 1):
+                        next_word = '~'
 
                     self.tags.add(cur_tag)
                     self.tags_counts[cur_tag] += 1
@@ -55,17 +64,19 @@ class FeatureStatistics:
                     else:
                         self.feature_rep_dict["f100"][(cur_word, cur_tag)] += 1
 
-                    # f101
-                    if (cur_word[len(cur_word) - 3:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
-                        self.feature_rep_dict["f101"][(cur_word[len(cur_word) - 3:len(cur_word)], cur_tag)] = 1
-                    else:
-                        self.feature_rep_dict["f101"][(cur_word[len(cur_word) - 3:len(cur_word)], cur_tag)] += 1
+                    if len(cur_word) >= 3:
+                        for i in range(2, 5):
+                            # f101
+                            if (cur_word[len(cur_word) - i:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
+                                self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] = 1
+                            else:
+                                self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] += 1
 
-                    # f102
-                    if (cur_word[:3], cur_tag) not in self.feature_rep_dict["f102"]:
-                        self.feature_rep_dict["f102"][(cur_word[:3], cur_tag)] = 1
-                    else:
-                        self.feature_rep_dict["f102"][(cur_word[:3], cur_tag)] += 1
+                            # f102
+                            if (cur_word[:i], cur_tag) not in self.feature_rep_dict["f102"]:
+                                self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] = 1
+                            else:
+                                self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] += 1
 
                     # f103
                     if (pre_previous_tag, previous_tag, cur_tag) not in self.feature_rep_dict["f103"]:
@@ -85,7 +96,6 @@ class FeatureStatistics:
                     else:
                         self.feature_rep_dict["f105"][cur_tag] += 1
 
-
                     # f106 check the diff with 100 for 106 and 107
                     if (previous_word, cur_tag) not in self.feature_rep_dict["f106"]:
                         self.feature_rep_dict["f106"][(previous_word, cur_tag)] = 1
@@ -96,9 +106,19 @@ class FeatureStatistics:
                     if (next_word, cur_tag) not in self.feature_rep_dict["f107"]:
                         self.feature_rep_dict["f107"][(next_word, cur_tag)] = 1
                     else:
-                        self.feature_rep_dict["f107S"][(next_word, cur_tag)] += 1
+                        self.feature_rep_dict["f107"][(next_word, cur_tag)] += 1
 
+                    # f108 features for capital letters
+                    if has_upper(cur_word) and (cur_word, cur_tag) not in self.feature_rep_dict["f108"]:
+                        self.feature_rep_dict["f108"][(cur_word, cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f108"][(cur_word, cur_tag)] += 1
 
+                    # f109 features for number in a word
+                    if has_num(cur_word) and (cur_word, cur_tag) not in self.feature_rep_dict["f109"]:
+                        self.feature_rep_dict["f109"][(cur_word, cur_tag)] = 1
+                    else:
+                        self.feature_rep_dict["f109"][(cur_word, cur_tag)] += 1
 
                 sentence = [("*", "*"), ("*", "*")]
                 for pair in split_words:
@@ -134,6 +154,8 @@ class Feature2id:
             "f105": OrderedDict(),
             "f106": OrderedDict(),
             "f107": OrderedDict(),
+            "f108": OrderedDict(),
+            "f109": OrderedDict(),
         }
         self.represent_input_with_features = OrderedDict()
         self.histories_matrix = OrderedDict()
@@ -186,6 +208,20 @@ class Feature2id:
                 self.feature_statistics.histories), self.n_total_features), dtype=bool)
 
 
+def has_upper(string):
+    for c in string:
+        if c.isupper():
+            return True
+    return False
+
+
+def has_num(string):
+    for c in string:
+        if c.isdigit():
+            return True
+    return False
+
+
 def represent_input_with_features(history: Tuple, dict_of_dicts: Dict[str, Dict[Tuple[str, str], int]])\
         -> List[int]:
     """
@@ -194,13 +230,55 @@ def represent_input_with_features(history: Tuple, dict_of_dicts: Dict[str, Dict[
         @param dict_of_dicts: a dictionary of each feature and the index it was given
         @return a list with all features that are relevant to the given history
     """
-    c_word = history[0]
-    c_tag = history[1]
+    cur_word = history[0]
+    cur_tag = history[1]
+    previous_word = history[2]
+    previous_tag = history[3]
+    pre_previous_word = history[4]
+    pre_previous_tag = history[5]
+    next_word = history[6]
     features = []
 
     # f100
-    if (c_word, c_tag) in dict_of_dicts["f100"]:
-        features.append(dict_of_dicts["f100"][(c_word, c_tag)])
+    if (cur_word, cur_tag) in dict_of_dicts["f100"]:
+        features.append(dict_of_dicts["f100"][(cur_word, cur_tag)])
+
+    if len(cur_word) >= 3:
+        for i in range(2, 5):
+            # f101
+            if (cur_word[len(cur_word) - i:len(cur_word)], cur_tag) in dict_of_dicts["f101"]:
+                features.append(dict_of_dicts["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)])
+            # f102
+            if (cur_word[:i], cur_tag) in dict_of_dicts["f102"]:
+                features.append(dict_of_dicts["f102"][(cur_word[:i], cur_tag)])
+
+    # f103
+    if (pre_previous_tag, previous_tag, cur_tag) in dict_of_dicts["f103"]:
+        features.append(dict_of_dicts["f103"][(pre_previous_tag, previous_tag, cur_tag)])
+
+    # f104
+    if (previous_tag, cur_tag) in dict_of_dicts["f104"]:
+        features.append(dict_of_dicts["f104"][(previous_tag, cur_tag)])
+
+    # f105
+    if (cur_tag,) in dict_of_dicts["f105"]:
+        features.append(dict_of_dicts["f105"][(cur_tag,)])
+
+    # f106
+    if (previous_word, cur_tag) in dict_of_dicts["f106"]:
+        features.append(dict_of_dicts["f106"][(previous_word, cur_tag)])
+
+    # f107
+    if (next_word, cur_tag) in dict_of_dicts["f107"]:
+        features.append(dict_of_dicts["f107"][(next_word, cur_tag)])
+
+    # f108
+    if (cur_word, cur_tag) in dict_of_dicts["f108"]:
+        features.append(dict_of_dicts["f108"][(cur_word, cur_tag)])
+
+    # f109
+    if (cur_word, cur_tag) in dict_of_dicts["f109"]:
+        features.append(dict_of_dicts["f109"][(cur_word, cur_tag)])
 
     return features
 
