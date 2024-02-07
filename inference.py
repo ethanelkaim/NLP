@@ -3,15 +3,10 @@ from preprocessing import read_test
 from tqdm import tqdm
 
 
-# Define a function to calculate the score of a tag transition
-# def score_transition(prev_tag, curr_tag):
-    # Your score calculation logic here
-
-    # return 0.0  # Placeholder value
-
-def q(x, tags):
+def q(v, u, t, w, k):
     numerator = 0
     denominator = 0
+    return numerator / denominator
 
 
 def memm_viterbi(sentence, pre_trained_weights, feature2id):
@@ -36,33 +31,19 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
             # Iterating over previous tags
             for u, prev_tag in enumerate(tags):
                 # Iterating over pre_previous tags
+                prob = {tag: 0 for tag in tags}
                 for t, pre_pre_tag in enumerate(tags):
-                    prob = {tag: 0 for tag in tags}
-                    # # Extract features for trigram
-                    # features = extract_trigram_features(sentence, k, current_tag, prev_tag, feature2id)
-                    #
-                    # # Calculate the score using pre-trained weights
-                    # score = calculate_score(features, pre_trained_weights)
-                    #
-                    # # Update probabilities
-                    # if k == 2:  # Base case for first trigram
-                    #     pi_matrix[0][0][v] = score
-                    # else:
-                    # Find the maximum probability and corresponding previous tag
-                    max_score = float('-inf')
-                    max_prev_tag = -1
-                    prob[t] = pi_matrix[(k - 1, t, u)] * q()
+                    prob[t] = pi_matrix[(k - 1, t, u)] * q(v, u, t, w, k)
 
+                argmax_t = -1
+                max_t = float('-inf')
+                for arg_t, t in enumerate(prob):
+                    if t > max_t:
+                        max_t = t
+                        argmax_t = arg_t
 
-
-
-                for prev_tag_index, prev_tag_prob in enumerate(pi_matrix[k - 3, :, :]):
-                    temp_score = prev_tag_prob[u] + score
-                    if temp_score > max_score:
-                        max_score = temp_score
-                        max_prev_tag = prev_tag_index
-                pi_matrix[k, u, v] = max_score
-                bp_matrix[k, u, v] = max_prev_tag
+                pi_matrix[k, u, v] = max_t
+                bp_matrix[k, u, v] = argmax_t
 
     # Backtrack to find the best tag sequence
     best_sequence = []
