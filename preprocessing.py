@@ -13,7 +13,7 @@ class FeatureStatistics:
         self.n_total_features = 0  # Total number of features accumulated
 
         # Init all features dictionaries
-        feature_dict_list = ["f100", "f101", "f102", "f103", "f104", "f105", "f106", "f107", "108", "109"]
+        feature_dict_list = ["f100", "f101", "f102", "f103", "f104", "f105", "f106", "f107", "f108", "f109"]
         self.feature_rep_dict = {fd: OrderedDict() for fd in feature_dict_list}
         '''
         A dictionary containing the counts of each data regarding a feature class. For example in f100, would contain
@@ -50,7 +50,7 @@ class FeatureStatistics:
                     if word_idx > 1:
                         pre_previous_word, pre_previous_tag = split_words[word_idx - 2].split('_')
                     if word_idx < (len(split_words) - 1):
-                        next_word, = split_words[word_idx + 1].split('_')
+                        next_word, next_tag = split_words[word_idx + 1].split('_')
                     if word_idx == (len(split_words) - 1):
                         next_word = '~'
 
@@ -66,17 +66,18 @@ class FeatureStatistics:
 
                     if len(cur_word) >= 3:
                         for i in range(2, 5):
-                            # f101
-                            if (cur_word[len(cur_word) - i:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
-                                self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] = 1
-                            else:
-                                self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] += 1
+                            if (len(cur_word) - i) >= 0:
+                                # f101
+                                if (cur_word[len(cur_word) - i:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
+                                    self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] = 1
+                                else:
+                                    self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] += 1
 
-                            # f102
-                            if (cur_word[:i], cur_tag) not in self.feature_rep_dict["f102"]:
-                                self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] = 1
-                            else:
-                                self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] += 1
+                                # f102
+                                if (cur_word[:i], cur_tag) not in self.feature_rep_dict["f102"]:
+                                    self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] = 1
+                                else:
+                                    self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] += 1
 
                     # f103
                     if (pre_previous_tag, previous_tag, cur_tag) not in self.feature_rep_dict["f103"]:
@@ -109,16 +110,18 @@ class FeatureStatistics:
                         self.feature_rep_dict["f107"][(next_word, cur_tag)] += 1
 
                     # f108 features for capital letters
-                    if has_upper(cur_word) and (cur_word, cur_tag) not in self.feature_rep_dict["f108"]:
-                        self.feature_rep_dict["f108"][(cur_word, cur_tag)] = 1
-                    else:
-                        self.feature_rep_dict["f108"][(cur_word, cur_tag)] += 1
+                    if has_upper(cur_word):
+                        if (cur_word, cur_tag) not in self.feature_rep_dict["f108"]:
+                            self.feature_rep_dict["f108"][(cur_word, cur_tag)] = 1
+                        else:
+                            self.feature_rep_dict["f108"][(cur_word, cur_tag)] += 1
 
                     # f109 features for number in a word
-                    if has_num(cur_word) and (cur_word, cur_tag) not in self.feature_rep_dict["f109"]:
-                        self.feature_rep_dict["f109"][(cur_word, cur_tag)] = 1
-                    else:
-                        self.feature_rep_dict["f109"][(cur_word, cur_tag)] += 1
+                    if has_num(cur_word):
+                        if (cur_word, cur_tag) not in self.feature_rep_dict["f109"]:
+                            self.feature_rep_dict["f109"][(cur_word, cur_tag)] = 1
+                        else:
+                            self.feature_rep_dict["f109"][(cur_word, cur_tag)] += 1
 
                 sentence = [("*", "*"), ("*", "*")]
                 for pair in split_words:
