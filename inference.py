@@ -4,14 +4,24 @@ from tqdm import tqdm
 import math
 
 
-def q(v, u, t, w, k, features_dict, pre_trained_weights, total_score=0):
-    denominator = 0
+def q(w, features_dict, pre_trained_weights, tags, total_score=0):
 
-    score = represent_input_with_features(w, features_dict)
-    for i in score:
+    index_vector = represent_input_with_features(w, features_dict)
+    for i in index_vector:
         total_score += pre_trained_weights[i]
-
     numerator = math.exp(total_score)
+
+    denominator = 0
+    all_w = []
+    for tag in tags:
+        all_w.append((w[0], tag, w[2], w[3], w[4], w[5], w[6]))
+
+    for w in all_w:
+        score = 0
+        index_vector = represent_input_with_features(w, features_dict)
+        for j in index_vector:
+            score += pre_trained_weights[j]
+        denominator += math.exp(score)
 
     return numerator / denominator
 
@@ -28,12 +38,11 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     num_words = len(sentence)
 
     pi_matrix = np.zeros((num_words + 1, num_tags, num_tags))
-    bp_matrix = np.zeros((num_words + 1, num_tags, num_tags), dtype=int)
+    bp_matrix = np.empty((num_words + 1, num_tags, num_tags), dtype=object)
     pi_matrix[0, tags.index('*'), tags.index('*')] = 1
 
     # Iterating over words
-    for k in range(2, num_words):
-
+    for k in tqdm(range(1, num_words), total=num_words - 1):
         if k == num_words - 1:
             next_word = '~'
         else:
@@ -49,18 +58,20 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
                 prob = {tag: 0 for tag in tags}
                 for t, pre_pre_tag in enumerate(tags):
                     w = [sentence[k], current_tag, previous_word, prev_tag, pre_previous_word, pre_pre_tag, next_word]
-                    prob[t] = pi_matrix[(k - 1, t, u)] * q(v, u, t, w, sentence[k], feature2id.feature_to_idx, pre_trained_weights)
+                    # qu = q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
+                    # pim = pi_matrix[(k - 1, t, u)]
+                    # prob[pre_pre_tag] = pim * qu
+                    prob[pre_pre_tag] = pi_matrix[(k - 1, t, u)] * q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
 
                 argmax_t = -1
                 max_t = float('-inf')
-                for arg_t, t in enumerate(prob):
-                    if t > max_t:
-                        max_t = t
+                for arg_t, p_t in prob.items():
+                    if p_t > max_t:
+                        max_t = p_t
                         argmax_t = arg_t
 
                 pi_matrix[k, u, v] = max_t
                 bp_matrix[k, u, v] = argmax_t
-
 
     # Backtrack to find the best tag sequence
     best_sequence = []
@@ -70,7 +81,7 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     # Find the maximum probability for the last word
     for u, prev_tag in enumerate(tags):
         for v, current_tag in enumerate(tags):
-            score = pi_matrix[num_words - 3][u][v]
+            score = pi_matrix[num_words - 2, u, v]
             if score > max_last_score:
                 max_last_score = score
                 max_last_tag = v
@@ -78,37 +89,14 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     best_sequence.append(tags[max_last_tag])
 
     # Backtrack to find the best sequence of tags
-    for k in range(num_words - 3, 0, -1):
-        prev_tag_index = bp_matrix[k][max_last_tag][0]
+    for k in range(num_words - 2, 0, -1):
+        prev_tag_index = bp_matrix[k, max_last_tag]
+        if isinstance(prev_tag_index, np.ndarray):
+            prev_tag_index = prev_tag_index.item()
         best_sequence.insert(0, tags[prev_tag_index])
         max_last_tag = prev_tag_index
 
     return best_sequence
-
-
-# def extract_trigram_features(sentence, i, current_tag, prev_tag, feature2id):
-#     """
-#     Extract features for the trigram MEMM model.
-#     """
-#     features = []
-#     Example: Add features related to current word, current tag, previous word, previous tag, etc.
-#     # features.append((sentence[i], current_tag, sentence[i - 1], prev_tag))
-#     Add more features as needed
-#     #
-#     Convert features to feature indices
-    # feature_indices = [feature2id.get(f, feature2id.get('UNK')) for f in features]
-    #
-    # return feature_indices
-#
-#
-# def calculate_score(features, pre_trained_weights):
-#     """
-#     Calculate the score for a given set of features using pre-trained weights.
-#     """
-#     score = 0.0
-#     for feature_index in features:
-#         score += pre_trained_weights[feature_index]
-#     return score
 
 
 def tag_all_test(test_path, pre_trained_weights, feature2id, predictions_path):
