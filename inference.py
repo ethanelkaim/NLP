@@ -58,9 +58,6 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
                 prob = {tag: 0 for tag in tags}
                 for t, pre_pre_tag in enumerate(tags):
                     w = [sentence[k], current_tag, previous_word, prev_tag, pre_previous_word, pre_pre_tag, next_word]
-                    # qu = q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
-                    # pim = pi_matrix[(k - 1, t, u)]
-                    # prob[pre_pre_tag] = pim * qu
                     prob[pre_pre_tag] = pi_matrix[(k - 1, t, u)] * q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
 
                 argmax_t = -1
@@ -77,6 +74,7 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     best_sequence = []
     max_last_score = float('-inf')
     max_last_tag = -1
+    max_last_last_tag = -1
 
     # Find the maximum probability for the last word
     for u, prev_tag in enumerate(tags):
@@ -85,16 +83,17 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
             if score > max_last_score:
                 max_last_score = score
                 max_last_tag = v
+                max_last_last_tag = u
 
+    best_sequence.append(tags[max_last_last_tag])
     best_sequence.append(tags[max_last_tag])
 
     # Backtrack to find the best sequence of tags
     for k in range(num_words - 2, 0, -1):
-        prev_tag_index = bp_matrix[k, max_last_tag]
-        if isinstance(prev_tag_index, np.ndarray):
-            prev_tag_index = prev_tag_index.item()
-        best_sequence.insert(0, tags[prev_tag_index])
-        max_last_tag = prev_tag_index
+        prev_tag = bp_matrix[k, max_last_last_tag, max_last_tag]
+        best_sequence.insert(0, prev_tag)
+        max_last_tag = max_last_last_tag
+        max_last_last_tag = tags.index(prev_tag)
 
     return best_sequence
 
@@ -105,7 +104,11 @@ def tag_all_test(test_path, pre_trained_weights, feature2id, predictions_path):
 
     output_file = open(predictions_path, "a+")
 
+    count = 0
+
     for k, sen in tqdm(enumerate(test), total=len(test)):
+        if count == 1:
+            break
         sentence = sen[0]
         pred = memm_viterbi(sentence, pre_trained_weights, feature2id)[1:]
         sentence = sentence[2:]
@@ -114,4 +117,5 @@ def tag_all_test(test_path, pre_trained_weights, feature2id, predictions_path):
                 output_file.write(" ")
             output_file.write(f"{sentence[i]}_{pred[i]}")
         output_file.write("\n")
+        count += 1
     output_file.close()
