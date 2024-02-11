@@ -1,3 +1,4 @@
+import heapq
 import numpy as np
 from preprocessing import read_test, represent_input_with_features
 from tqdm import tqdm
@@ -42,33 +43,40 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     pi_matrix[0, tags.index('*'), tags.index('*')] = 1
 
     # Iterating over words
-    for k in tqdm(range(1, num_words), total=num_words - 1):
+    for k in range(1, num_words):
         if k == num_words - 1:
             next_word = '~'
         else:
             next_word = sentence[k + 1]
         previous_word = sentence[k - 1]
-        pre_previous_word = sentence[k - 2]
+        if k == 1:
+            pre_previous_word = '*'
+        else:
+            pre_previous_word = sentence[k - 2]
 
-        # Iterating over current tag
+        # Beam search of the best two tags for previous and pre-previous positions
+        if k == 1:
+            top_prev_tags = [tags.index('*')]
+            top_pre_prev_tags = [tags.index('*')]
+        elif k == 2:
+            top_prev_tags = np.argsort(-pi_matrix[k - 1, :, :].max(axis=0))[:2]
+            top_pre_prev_tags = [tags.index('*')]
+        else:
+            top_prev_tags = np.argsort(-pi_matrix[k - 1, :, :].max(axis=0))[:2]
+            top_pre_prev_tags = np.argsort(-pi_matrix[k - 2, :, :].max(axis=0))[:2]
+
+            # Iterating over current tag
         for v, current_tag in enumerate(tags):
-            # Iterating over previous tags
-            for u, prev_tag in enumerate(tags):
-                # Iterating over pre_previous tags
-                prob = {tag: 0 for tag in tags}
-                for t, pre_pre_tag in enumerate(tags):
-                    w = [sentence[k], current_tag, previous_word, prev_tag, pre_previous_word, pre_pre_tag, next_word]
-                    prob[pre_pre_tag] = pi_matrix[(k - 1, t, u)] * q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
+            # Iterate over the best two previous tags and pre-previous tags
+            for u in top_prev_tags:
+                for t in top_pre_prev_tags:
+                    w = [sentence[k], current_tag, previous_word, tags[u], pre_previous_word, tags[t], next_word]
+                    prob = pi_matrix[k - 1, t, u] * q(w, feature2id.feature_to_idx, pre_trained_weights, tags)
 
-                argmax_t = -1
-                max_t = float('-inf')
-                for arg_t, p_t in prob.items():
-                    if p_t > max_t:
-                        max_t = p_t
-                        argmax_t = arg_t
-
-                pi_matrix[k, u, v] = max_t
-                bp_matrix[k, u, v] = argmax_t
+                    # Update pi_matrix and bp_matrix
+                    if prob > pi_matrix[k, u, v]:
+                        pi_matrix[k, u, v] = prob
+                        bp_matrix[k, u, v] = tags[t]
 
     # Backtrack to find the best tag sequence
     best_sequence = []
@@ -89,7 +97,7 @@ def memm_viterbi(sentence, pre_trained_weights, feature2id):
     best_sequence.append(tags[max_last_tag])
 
     # Backtrack to find the best sequence of tags
-    for k in range(num_words - 2, 0, -1):
+    for k in range(num_words - 2, 2, -1):
         prev_tag = bp_matrix[k, max_last_last_tag, max_last_tag]
         best_sequence.insert(0, prev_tag)
         max_last_tag = max_last_last_tag
@@ -107,8 +115,6 @@ def tag_all_test(test_path, pre_trained_weights, feature2id, predictions_path):
     count = 0
 
     for k, sen in tqdm(enumerate(test), total=len(test)):
-        if count == 1:
-            break
         sentence = sen[0]
         pred = memm_viterbi(sentence, pre_trained_weights, feature2id)[1:]
         sentence = sentence[2:]
