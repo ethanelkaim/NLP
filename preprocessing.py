@@ -40,7 +40,7 @@ class FeatureStatistics:
                 for word_idx in range(len(split_words)):
                     cur_word, cur_tag = split_words[word_idx].split('_')
 
-                    # setting previous and next words/ tags
+                    # setting previous and next words/tags
                     if word_idx == 0:
                         previous_word, previous_tag = ['*', '*']
                     if word_idx <= 1:
@@ -64,16 +64,19 @@ class FeatureStatistics:
                     else:
                         self.feature_rep_dict["f100"][(cur_word, cur_tag)] += 1
 
+                    # f101
                     if len(cur_word) >= 3:
-                        for i in range(2, 5):
+                        for i in range(1, 5):
                             if (len(cur_word) - i) >= 0:
-                                # f101
                                 if (cur_word[len(cur_word) - i:len(cur_word)], cur_tag) not in self.feature_rep_dict["f101"]:
                                     self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] = 1
                                 else:
                                     self.feature_rep_dict["f101"][(cur_word[len(cur_word) - i:len(cur_word)], cur_tag)] += 1
 
-                                # f102
+                    # f102
+                    if len(cur_word) >= 3:
+                        for i in range(2, 5):
+                            if (len(cur_word) - i) >= 0:
                                 if (cur_word[:i], cur_tag) not in self.feature_rep_dict["f102"]:
                                     self.feature_rep_dict["f102"][(cur_word[:i], cur_tag)] = 1
                                 else:
