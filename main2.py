@@ -13,61 +13,92 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import torch.optim as optim
 
 from abc import ABC
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from tqdm import tqdm, trange
-
+from tqdm import tqdm
 
 GLOVE_PATH = 'glove-twitter-200'
 
 
-def embedding(train_path, dev_path):
-    try:
-        glove = KeyedVectors.load('glove_model.pkl')
-    except FileNotFoundError:
-        glove = downloader.load(GLOVE_PATH)
-        with open('glove_model.pkl', 'wb') as f:
-            pickle.dump(glove, f)
+def embedding(train_path, dev_path, condition=False):
+    if not condition:
+        try:
+            glove = KeyedVectors.load('glove_model.pkl')
+        except FileNotFoundError:
+            glove = downloader.load(GLOVE_PATH)
+            with open('glove_model.pkl', 'wb') as f:
+                pickle.dump(glove, f)
 
-    train_words, train_tags = preprocess(train_path)
-    dev_words, dev_tags = preprocess(dev_path)
+    train_words, train_tags = preprocess(train_path, condition)
+    dev_words, dev_tags = preprocess(dev_path, condition)
 
     X_train, Y_train = [], []
-    for word, tag in zip(train_words, train_tags):
-        if word in glove.key_to_index:
-            X_train.append(glove[word])
-            Y_train.append(tag)
-
     X_dev, Y_dev = [], []
-    for word, tag in zip(dev_words, dev_tags):
-        if word in glove.key_to_index:
-            X_dev.append(glove[word])
-            Y_dev.append(tag)
 
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
-    X_dev = np.array(X_dev)
-    Y_dev = np.array(Y_dev)
+    if not condition:
+        for word, tag in zip(train_words, train_tags):
+            if word in glove.key_to_index:
+                X_train.append(glove[word])
+                Y_train.append(tag)
 
-    Y_train_binary = [0 if tag == 'O' else 1 for tag in Y_train]
-    Y_dev_binary = [0 if tag == 'O' else 1 for tag in Y_dev]
+        for word, tag in zip(dev_words, dev_tags):
+            if word in glove.key_to_index:
+                X_dev.append(glove[word])
+                Y_dev.append(tag)
 
-    return X_train, Y_train_binary, X_dev, Y_dev_binary
+        X_train = np.array(X_train)
+        Y_train = np.array(Y_train)
+        X_dev = np.array(X_dev)
+        Y_dev = np.array(Y_dev)
+
+        Y_train = [0 if tag == 'O' else 1 for tag in Y_train]
+        Y_dev = [0 if tag == 'O' else 1 for tag in Y_dev]
+
+    else:
+        X_train = train_words
+        Y_train = train_tags
+        X_dev = dev_words
+        Y_dev = dev_tags
+
+    return X_train, Y_train, X_dev, Y_dev
 
 
-def preprocess(path, condition=False):
+def preprocess(path, condition=True):
     with open(path, 'r', encoding='utf-8') as f:
-        sentences = f.readlines()
+        lines = f.readlines()
 
-    words = [sen.split()[0].lower() for sen in sentences if sen.strip()]  # Select first word, make lowercase
-    tags = [sen.split()[1] for sen in sentences if len(sen.split()) > 1 and sen.strip()]  # Select the word tag
+    if condition:
+        words, tags = [], []
+        sentences = []
+        sen = []
+        for line in lines:
+            if line != "\t\n" and line != "\n":
+                sen.append(line)
+            else:
+                sentences.append(sen)
+                sen = []
+
+        for sen in sentences:
+            word_line = []
+            tag_line = []
+            for line in sen:
+                if line.strip():
+                    word_line.append(line.split()[0].lower())
+                if len(line.split()) > 1 and line.strip():
+                    if line.split()[1] == 'O':
+                        tag_line.append(0)
+                    else:
+                        tag_line.append(1)
+            words.append(word_line)
+            tags.append(tag_line)
+
+    else:
+        words = [sen.split()[0].lower() for sen in lines if sen.strip()]  # Select first word, make lowercase
+        tags = [sen.split()[1] for sen in lines if len(sen.split()) > 1 and sen.strip()]  # Select the word tag
 
     return words, tags
 
 
 # Model 1
 def model1(train_path, dev_path):
-
     X_train, Y_train_binary, X_dev, Y_dev_binary = embedding(train_path, dev_path)
 
     # model = LogisticRegression(max_iter=200)
@@ -85,21 +116,20 @@ class SimpleNN(nn.Module):
         super(SimpleNN, self).__init__()
         # Définir la couche d'entrée (200 neurones, correspondant à la taille des embeddings GloVe)
         self.fc1 = nn.Linear(200, 128)  # Première couche cachée de 128 neurones
-        self.fc2 = nn.Linear(128, 64)   # Deuxième couche cachée de 64 neurones
-        self.fc3 = nn.Linear(64, 32)    # Ajout d'une troisième couche cachée de 32 neurones
-        self.fc4 = nn.Linear(32, 2)    # Couche de sortie de 13 neurones, une pour chaque classe
+        self.fc2 = nn.Linear(128, 64)  # Deuxième couche cachée de 64 neurones
+        self.fc3 = nn.Linear(64, 32)  # Ajout d'une troisième couche cachée de 32 neurones
+        self.fc4 = nn.Linear(32, 2)  # Couche de sortie de 13 neurones, une pour chaque classe
 
     def forward(self, x):
         # Forward pass à travers les couches
         x = F.relu(self.fc1(x))  # Activation ReLU pour la première couche cachée
         x = F.relu(self.fc2(x))  # Activation ReLU pour la deuxième couche cachée
         x = F.relu(self.fc3(x))  # Activation ReLU pour la troisième couche cachée
-        x = self.fc4(x)          # Pas d'activation ici, cela dépend de votre fonction de perte
+        x = self.fc4(x)  # Pas d'activation ici, cela dépend de votre fonction de perte
         return x
 
 
 def model2(train_path, dev_path, test_path):
-
     X_train, Y_train_binary, X_dev, Y_dev_binary = embedding(train_path, dev_path)
 
     model = SimpleNN()
@@ -172,7 +202,8 @@ def model2(train_path, dev_path, test_path):
         dev_losses.append(dev_loss)
         dev_accuracy.append(100 * correct_dev / total_dev)
 
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy[-1]:.2f}%, Dev Loss: {dev_loss:.4f}, Dev Accuracy: {dev_accuracy[-1]:.2f}%')
+        print(
+            f'Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy[-1]:.2f}%, Dev Loss: {dev_loss:.4f}, Dev Accuracy: {dev_accuracy[-1]:.2f}%')
 
     y_true = []
     y_pred = []
@@ -206,8 +237,8 @@ class ReviewsDataSet(Dataset, ABC):
 
 
 def tokenize(x_train, x_val):
-    word2idx = {"[PAD]": 0, "[UNK]": 1}
-    idx2word = ["[PAD]", "[UNK]"]
+    word2idx = {"PAD": 0, "UNK": 1}
+    idx2word = ["PAD", "UNK"]
     for sent in x_train:
         for word in sent:
             if word not in word2idx:
@@ -218,7 +249,7 @@ def tokenize(x_train, x_val):
     for sent in x_train:
         final_list_train.append([word2idx[word] for word in sent])
     for sent in x_val:
-        final_list_test.append([word2idx[word] if word in word2idx else word2idx["[UNK]"] for word in sent])
+        final_list_test.append([word2idx[word] if word in word2idx else word2idx['UNK'] for word in sent])
     return final_list_train, final_list_test, word2idx, idx2word
 
 
@@ -237,69 +268,94 @@ class MyNet(nn.Module):
         self.hidden_dim = hidden_dim
         self.word_embedding = nn.Embedding(vocab_size, self.embedding_dim)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim, batch_first=True)
-        self.hidden2tag = nn.Sequential(nn.ReLU(),
-                                        nn.Linear(self.hidden_dim, tag_dim))
-        self.loss_fn = nn.NLLLoss()
+        self.hidden2tag = nn.Sequential(nn.ReLU(), nn.Linear(self.hidden_dim, tag_dim))
+        self.loss_fn = torch.nn.CrossEntropyLoss()
 
-    def forward(self, sentence, sentence_len, tags=None):
+    def forward(self, sentence, sentence_lens, tags=None):
         embeds = self.word_embedding(sentence)
-        lstm_out, _ = self.lstm(embeds.view(len(sentence), -1, self.embedding_dim))
-        tag_space = self.hidden2tag(lstm_out[range(len(sentence)), sentence_len - 1, :])
-        tag_score = F.softmax(tag_space, dim=1)
-        if tags is None:
-            return tag_score, None
-        loss = self.loss_fn(tag_score, tags)
-        return tag_score, loss
+        lstm_out, _ = self.lstm(embeds)
+        # Assuming you want to apply the linear layer to every time step:
+        tag_space = self.hidden2tag(lstm_out)
+        tag_scores = F.log_softmax(tag_space, dim=2)  # Apply along the correct dimension
+
+        if tags is not None:
+            # Flatten the outputs and targets to compute the loss for each timestep
+            loss = self.loss_fn(tag_scores.view(-1, tag_scores.shape[-1]), tags.view(-1))
+            return tag_scores, loss
+        return tag_scores, None
 
 
 def train(model, device, optimizer, train_dataset, val_dataset):
     accuracies = []
+    y_true = []
+    y_pred = []
     for phase in ["train", "validation"]:
         if phase == "train":
             model.train(True)
         else:
-            model.train(False) #or model.evel()
+            model.train(False)
         correct = 0.0
         count = 0
         accuracy = None
         dataset = train_dataset if phase == "train" else val_dataset
         t_bar = tqdm(dataset)
         for sentence, lens, tags in t_bar:
+            sentence, lens, tags = sentence.to(device), lens.to(device), tags.to(device).long()
             if phase == "train":
-                tag_scores, loss = model(sentence.to(device), lens.to(device), tags.to(device))
+                model.zero_grad()
+                tag_scores, loss = model(sentence, lens, tags)
                 loss.backward()
                 optimizer.step()
-                optimizer.zero_grad()
             else:
                 with torch.no_grad():
-                    tag_scores, _ = model(sentence.to(device), lens.to(device), tags.to(device))
-            correct += (tag_scores.argmax(1).to("cpu") == tags).sum()
+                    tag_scores, _ = model(sentence, lens, tags)
+
+            # Convert softmax scores to predictions
+            # Assuming dim=2 since your tag_scores are likely [batch, seq_len, n_classes]
+            predicted = tag_scores.argmax(dim=2)
+
+            # Move tensors back to CPU for compatibility with NumPy and sklearn
+            tags_cpu = tags.cpu()
+            predicted_cpu = predicted.cpu()
+
+            # Flatten the tensors to collapse the batch and sequence dimensions
+            for tag in tags_cpu:
+                y_true.extend(tag.numpy())
+            for tag in predicted_cpu:
+                y_pred.extend(tag.numpy())
+
+            correct += (tag_scores[0].argmax(1).to(device) == tags).sum()
             count += len(tags)
-            accuracy = correct/count
+            accuracy = correct / count
             t_bar.set_description(f"{phase} accuracy: {accuracy:.2f}")
+
+        f1 = f1_score(y_true, y_pred)
+        print(f'F1 Score for {phase} phase: {f1:.4f}')
         accuracies += [accuracy]
-    return accuracies
+
+    return accuracies[0], accuracies[1], f1
 
 
 def model3(train_path, dev_path, test_path):
-
-    X_train, Y_train_binary, X_dev, Y_dev_binary = embedding(train_path, dev_path)
+    X_train, Y_train_binary, X_dev, Y_dev_binary = embedding(train_path, dev_path, True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("device:", device)
 
-    n_classes = max(Y_dev_binary) + 1
+    n_classes = 2
     print("n_classes:", n_classes)
 
     X_train, X_dev, word2idx, idx2word = tokenize(X_train, X_dev)
     vocab_size = len(word2idx)
     print("vocab_size:", vocab_size)
 
-    train_sentence_lens = [min(len(s), 500) for s in X_train]
-    test_sentence_lens = [min(len(s), 500) for s in X_dev]
+    train_sentence_lens = [min(len(s), 80) for s in X_train]
+    test_sentence_lens = [min(len(s), 80) for s in X_dev]
 
-    x_train_pad = padding_(X_train, 500)
-    x_test_pad = padding_(X_dev, 500)
+    x_train_pad = padding_(X_train, 80)
+    Y_train_binary = padding_(Y_train_binary, 80)
+    x_test_pad = padding_(X_dev, 80)
+    Y_dev_binary = padding_(Y_dev_binary, 80)
 
     print(x_train_pad.shape, x_test_pad.shape)
 
@@ -313,17 +369,18 @@ def model3(train_path, dev_path, test_path):
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=8e-3)
 
-    best_accuracy = 0
-    best_epoch = None
-    for epoch in range(7):
+    best_f1 = 0
+    best_epoch = 0
+    for epoch in range(1000):
         print(f"\n -- Epoch {epoch} --")
-        train_accuracy, val_accuracy = train(model, device, optimizer, train_dataloader, test_dataloader)
-        if val_accuracy > best_accuracy:
-            best_accuracy = val_accuracy
+        train_accuracy, val_accuracy, f1 = train(model, device, optimizer, train_dataloader, test_dataloader)
+
+        if f1 > best_f1:
+            best_f1 = f1
             best_epoch = epoch
-        if epoch - best_epoch == 3:
+        if epoch - best_epoch == 10:
             break
-    print(f"best accuracy: {best_accuracy:.2f} in epoch {best_epoch}")
+    print(f"\nBest F1 score is : {best_f1:.4f} in epoch {best_epoch}")
 
 
 def main():
@@ -331,9 +388,9 @@ def main():
     dev_path = 'data/dev.tagged'
     test_path = 'data/test.untagged'
 
-    # model1(train_path, dev_path)
+    model1(train_path, dev_path)
     # model2(train_path, dev_path, test_path)
-    model3(train_path, dev_path, test_path)
+    # model3(train_path, dev_path, test_path)
 
 
 if __name__ == '__main__':
