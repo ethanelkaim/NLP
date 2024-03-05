@@ -263,23 +263,21 @@ def padding_(sentences, seq_len):
 
 class MyNet(nn.Module):
     def __init__(self, vocab_size, embedding_dim=30, hidden_dim=50, tag_dim=2):
-        super().__init__()
+        super(MyNet, self).__init__()
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
         self.word_embedding = nn.Embedding(vocab_size, self.embedding_dim)
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim, batch_first=True)
+        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim // 2,
+                            batch_first=True, bidirectional=True)
         self.hidden2tag = nn.Sequential(nn.ReLU(), nn.Linear(self.hidden_dim, tag_dim))
         self.loss_fn = torch.nn.CrossEntropyLoss()
 
     def forward(self, sentence, sentence_lens, tags=None):
         embeds = self.word_embedding(sentence)
         lstm_out, _ = self.lstm(embeds)
-        # Assuming you want to apply the linear layer to every time step:
         tag_space = self.hidden2tag(lstm_out)
-        tag_scores = F.log_softmax(tag_space, dim=2)  # Apply along the correct dimension
-
+        tag_scores = F.log_softmax(tag_space, dim=2)
         if tags is not None:
-            # Flatten the outputs and targets to compute the loss for each timestep
             loss = self.loss_fn(tag_scores.view(-1, tag_scores.shape[-1]), tags.view(-1))
             return tag_scores, loss
         return tag_scores, None
@@ -362,8 +360,8 @@ def model3(train_path, dev_path, test_path):
     train_dataset = ReviewsDataSet(x_train_pad, train_sentence_lens, Y_train_binary)
     test_dataset = ReviewsDataSet(x_test_pad, test_sentence_lens, Y_dev_binary)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=64)
-    test_dataloader = DataLoader(test_dataset, batch_size=64)
+    train_dataloader = DataLoader(train_dataset, batch_size=32)
+    test_dataloader = DataLoader(test_dataset, batch_size=32)
 
     model = MyNet(vocab_size, tag_dim=n_classes)
     model.to(device)
@@ -388,9 +386,9 @@ def main():
     dev_path = 'data/dev.tagged'
     test_path = 'data/test.untagged'
 
-    model1(train_path, dev_path)
+    # model1(train_path, dev_path)
     # model2(train_path, dev_path, test_path)
-    # model3(train_path, dev_path, test_path)
+    model3(train_path, dev_path, test_path)
 
 
 if __name__ == '__main__':
